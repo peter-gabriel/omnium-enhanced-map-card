@@ -30,7 +30,7 @@ interface ZoneInfo {
   icon: string;
 }
 
-class EnhancedMapCard extends LitElement {
+class OmniumEnhancedMapCard extends LitElement {
   static properties = {
     isPanel: { type: Boolean },
     layout: {},
@@ -1039,12 +1039,12 @@ function formatDuration(ms: number): string {
   return `${Math.floor(h / 24)}d ${h % 24}h`;
 }
 
-if (!customElements.get('enhanced-map-card')) {
-  customElements.define('enhanced-map-card', EnhancedMapCard);
+if (!customElements.get('omnium-enhanced-map-card')) {
+  customElements.define('omnium-enhanced-map-card', OmniumEnhancedMapCard);
   ((window as any).customCards ??= []).push({
-    type: 'enhanced-map-card',
-    name: 'Enhanced Map Card',
+    type: 'omnium-enhanced-map-card',
+    name: 'Omnium Enhanced Map Card',
     description: 'Google Maps with a clean track, stops and a timeline',
   });
-  console.info(`%cENHANCED-MAP-CARD ${VERSION}`, 'color:#4285F4;font-weight:bold');
+  console.info(`%cOMNIUM-ENHANCED-MAP-CARD ${VERSION}`, 'color:#4285F4;font-weight:bold');
 }
