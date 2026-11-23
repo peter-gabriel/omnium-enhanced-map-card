@@ -1,8 +1,8 @@
 // UI strings: pt-BR, es and en-US (default).
 
 const en = {
-  errApiKey: 'enhanced-map-card: set `api_key` (Google Maps JavaScript API).',
-  errEntities: 'enhanced-map-card: set `entities` (e.g. person.you).',
+  errApiKey: 'omnium-enhanced-map-card: set `api_key` (Google Maps JavaScript API).',
+  errEntities: 'omnium-enhanced-map-card: set `entities` (e.g. person.you).',
   errAuth: 'Google Maps rejected the key. Check `api_key`, billing and the referrer restrictions.',
   errHistory: (msg: string) => `Could not read history: ${msg}`,
   errMapsDownload: 'Could not download Google Maps.',
@@ -47,8 +47,8 @@ const en = {
 export type Strings = typeof en;
 
 const pt: Strings = {
-  errApiKey: 'enhanced-map-card: defina `api_key` (Google Maps JavaScript API).',
-  errEntities: 'enhanced-map-card: defina `entities` (ex.: person.voce).',
+  errApiKey: 'omnium-enhanced-map-card: defina `api_key` (Google Maps JavaScript API).',
+  errEntities: 'omnium-enhanced-map-card: defina `entities` (ex.: person.voce).',
   errAuth: 'Chave do Google Maps recusada. Confira a `api_key`, a cobrança e as restrições de referrer.',
   errHistory: (msg) => `Erro ao ler o histórico: ${msg}`,
   errMapsDownload: 'Não foi possível baixar o Google Maps.',
@@ -91,8 +91,8 @@ const pt: Strings = {
 };
 
 const es: Strings = {
-  errApiKey: 'enhanced-map-card: define `api_key` (Google Maps JavaScript API).',
-  errEntities: 'enhanced-map-card: define `entities` (p. ej. person.tu).',
+  errApiKey: 'omnium-enhanced-map-card: define `api_key` (Google Maps JavaScript API).',
+  errEntities: 'omnium-enhanced-map-card: define `entities` (p. ej. person.tu).',
   errAuth: 'Google Maps rechazó la clave. Revisa la `api_key`, la facturación y las restricciones de referrer.',
   errHistory: (msg) => `Error al leer el historial: ${msg}`,
   errMapsDownload: 'No se pudo descargar Google Maps.',

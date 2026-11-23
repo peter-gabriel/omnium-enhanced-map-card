@@ -4,7 +4,7 @@ import pkg from './package.json' with { type: 'json' };
 export default defineConfig({
   define: { __VERSION__: JSON.stringify(pkg.version) },
   build: {
-    lib: { entry: 'src/enhanced-map-card.ts', formats: ['es'], fileName: () => 'enhanced-map-card.js' },
+    lib: { entry: 'src/omnium-enhanced-map-card.ts', formats: ['es'], fileName: () => 'omnium-enhanced-map-card.js' },
     outDir: 'dist',
     emptyOutDir: true,
   },

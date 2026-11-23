@@ -1,5 +1,5 @@
 {
-  "name": "Enhanced Map Card",
-  "filename": "enhanced-map-card.js",
+  "name": "Omnium Enhanced Map Card",
+  "filename": "omnium-enhanced-map-card.js",
   "homeassistant": "2024.1.0"
 }

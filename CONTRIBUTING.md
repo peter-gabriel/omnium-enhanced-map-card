@@ -19,8 +19,8 @@ Nothing is pushed straight to `main` or `develop`: every change goes through a p
 ```bash
 npm install
 npm test          # GPS filter, stop detection and i18n tests
-npm run build     # outputs dist/enhanced-map-card.js
-npm run dev       # rebuild on change and serve on http://<your-machine-ip>:5180/enhanced-map-card.js
+npm run build     # outputs dist/omnium-enhanced-map-card.js
+npm run dev       # rebuild on change and serve on http://<your-machine-ip>:5180/omnium-enhanced-map-card.js
 ```
 
 To try your build in Home Assistant, add the `npm run dev` URL as a dashboard resource on a test dashboard. Then refresh HA after each change.
@@ -37,5 +37,5 @@ UI strings live in [`src/i18n.ts`](src/i18n.ts). Please add every new string to 
 4. Publish a GitHub release with the tag `vX.Y.Z` on `main`. The **Release** workflow then:
    - checks that the tag matches `package.json`;
    - runs the tests and builds the card;
-   - attaches `enhanced-map-card.js` to the release, which is the file HACS installs.
+   - attaches `omnium-enhanced-map-card.js` to the release, which is the file HACS installs.
 5. Merge `main` back into `develop`, through a PR.
