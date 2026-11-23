@@ -1,8 +1,8 @@
-# Enhanced Map Card
+# Omnium Enhanced Map Card
 
 A Home Assistant Lovelace card that shows where people have been on **Google Maps**: a clean track instead of a cloud of dots.
 
-![Enhanced Map Card: a day of one person's track with stops and the timeline](https://raw.githubusercontent.com/peter-gabriel/enhanced-map-card/main/docs/screenshot.png)
+![Omnium Enhanced Map Card: a day of one person's track with stops and the timeline](https://raw.githubusercontent.com/peter-gabriel/omnium-enhanced-map-card/main/docs/screenshot.png)
 
 *Screenshots use fictional people and places.*
 
@@ -17,25 +17,36 @@ A Home Assistant Lovelace card that shows where people have been on **Google Map
 
 ## Installation
 
-### HACS (recommended)
+The card is not in the default store yet, so you add it by its GitHub link. Updates then arrive with each new release.
 
-Until the card is listed in the default HACS store, add it as a custom repository:
+### Marketplace (newer Home Assistant versions)
 
-1. In HACS → ⋮ → **Custom repositories**, add this repository's URL with the type **Dashboard**.
-2. Search for **Enhanced Map Card**, download it, and reload the browser.
+1. Open **Marketplace** in the sidebar and click **Add from link** (top right).
+2. Paste `https://github.com/peter-gabriel/omnium-enhanced-map-card` and click **Add**.
+3. Search for **Omnium Enhanced Map Card**, open it and click **Install**.
+4. Reload the browser when asked.
+
+The Marketplace adds the dashboard resource for you.
+
+### HACS
+
+1. In HACS → ⋮ → **Custom repositories**, add `https://github.com/peter-gabriel/omnium-enhanced-map-card` with the type **Dashboard**.
+2. Search for **Omnium Enhanced Map Card**, download it, and reload the browser.
 
 HACS adds the dashboard resource for you.
 
 ### Manual
 
-1. Download `enhanced-map-card.js` from the [latest release](../../releases/latest).
+1. Download `omnium-enhanced-map-card.js` from the [latest release](https://github.com/peter-gabriel/omnium-enhanced-map-card/releases/latest).
 2. Copy it to `/config/www/`.
-3. Add it under **Settings → Dashboards → ⋮ → Resources** as `/local/enhanced-map-card.js`, with the type *JavaScript module*.
+3. Add it under **Settings → Dashboards → ⋮ → Resources** as `/local/omnium-enhanced-map-card.js`, with the type *JavaScript module*.
+
+If you switch from a manual install to the Marketplace or HACS, delete the old `/local/omnium-enhanced-map-card.js` resource. Otherwise the card is loaded twice.
 
 ## Configuration
 
 ```yaml
-type: custom:enhanced-map-card
+type: custom:omnium-enhanced-map-card
 api_key: YOUR_KEY             # Maps JavaScript API key (required)
 map_id: YOUR_MAP_ID           # optional; DEMO_MAP_ID is used when omitted
 entities:                     # person.* or device_tracker.* entities (required)
@@ -79,7 +90,7 @@ The **settings button** (sliders icon) in the toolbar opens a panel where you ca
 
 Changes are saved in that browser only and override the YAML. **Restore YAML defaults** goes back to the configured values.
 
-![Settings panel with the map settings and the phone's high-accuracy interval](https://raw.githubusercontent.com/peter-gabriel/enhanced-map-card/main/docs/settings.png)
+![Settings panel with the map settings and the phone's high-accuracy interval](https://raw.githubusercontent.com/peter-gabriel/omnium-enhanced-map-card/main/docs/settings.png)
 
 ### Extra toolbar buttons
 
@@ -165,7 +176,7 @@ Google bills Dynamic Maps per *map load*, which happens each time the card creat
 ```bash
 npm install
 npm test          # GPS filter, stop detection and i18n tests
-npm run build     # outputs dist/enhanced-map-card.js
+npm run build     # outputs dist/omnium-enhanced-map-card.js
 ```
 
 ### Quick dev loop
@@ -174,7 +185,7 @@ npm run build     # outputs dist/enhanced-map-card.js
 npm run dev
 ```
 
-This rebuilds on every change and serves the file at `http://<your-machine-ip>:5180/enhanced-map-card.js`. Add that URL as a resource on a test dashboard, then refresh HA after each change.
+This rebuilds on every change and serves the file at `http://<your-machine-ip>:5180/omnium-enhanced-map-card.js`. Add that URL as a resource on a test dashboard, then refresh HA after each change.
 
 ### Adding a language
 
