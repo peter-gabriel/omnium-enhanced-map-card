@@ -29,6 +29,8 @@ const en = {
   minStop: 'Minimum stop time',
   minStopHint: 'Staying still for less than this is not a stop.',
   resetYaml: 'Restore YAML defaults',
+  snapToRoads: 'Follow the streets (OSRM)',
+  snapToRoadsHint: 'Draws trips along the streets with the local OSRM app. Off: straight lines between points.',
 
   gpsButton: (name: string) => `High-accuracy GPS (${name})`,
   buttonOn: (label: string) => `${label}: on (tap to turn off)`,
@@ -77,6 +79,8 @@ const pt: Strings = {
   minStop: 'Tempo mínimo de parada',
   minStopHint: 'Ficar parado menos que isso não vira parada.',
   resetYaml: 'Restaurar padrão do YAML',
+  snapToRoads: 'Seguir as ruas (OSRM)',
+  snapToRoadsHint: 'Desenha os deslocamentos pelas ruas usando o App OSRM local. Desligado: linhas retas entre os pontos.',
 
   gpsButton: (name) => `Alta precisão do GPS (${name})`,
   buttonOn: (label) => `${label}: ligado (toque para desligar)`,
@@ -123,6 +127,8 @@ const es: Strings = {
   minStop: 'Tiempo mínimo de parada',
   minStopHint: 'Quedarse quieto menos que esto no cuenta como parada.',
   resetYaml: 'Restaurar valores del YAML',
+  snapToRoads: 'Seguir las calles (OSRM)',
+  snapToRoadsHint: 'Dibuja los trayectos por las calles con la app OSRM local. Apagado: líneas rectas entre los puntos.',
 
   gpsButton: (name) => `GPS de alta precisión (${name})`,
   buttonOn: (label) => `${label}: activado (toca para desactivar)`,

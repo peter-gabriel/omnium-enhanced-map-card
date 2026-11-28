@@ -48,6 +48,11 @@ export interface CardConfig {
   gesture_handling?: 'greedy' | 'cooperative' | 'auto' | 'none';
   /** icon-only buttons in the card toolbar */
   buttons?: ToolbarButton[];
+  /**
+   * Draw trips along the streets with OSRM map matching, called through a Home Assistant action that
+   * returns the OSRM response (see README). `true` uses `rest_command.osrm_match`.
+   */
+  snap_to_roads?: boolean | { service?: string; radius?: number };
 }
 
 export interface ToolbarButton {

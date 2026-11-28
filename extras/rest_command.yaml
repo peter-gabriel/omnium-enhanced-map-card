@@ -1,0 +1,7 @@
+# Used by Omnium Enhanced Map Card (snap_to_roads) to match GPS tracks to roads
+# with the local "OSRM map matching" app. The card calls it and reads the response.
+osrm_match:
+  url: >-
+    http://local-osrm:5000/match/v1/driving/{{ coordinates }}?timestamps={{ timestamps }}&radiuses={{ radiuses }}&overview=full&geometries=geojson&gaps=ignore&tidy=true
+  method: get
+  timeout: 20
