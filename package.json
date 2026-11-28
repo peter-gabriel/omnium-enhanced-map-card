@@ -1,6 +1,6 @@
 {
   "name": "omnium-enhanced-map-card",
-  "version": "0.7.0",
+  "version": "0.8.0",
   "description": "Home Assistant card: Google Maps with a clean track, stops, a timeline and high-accuracy GPS control",
   "type": "module",
   "license": "MIT",

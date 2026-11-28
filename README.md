@@ -9,6 +9,7 @@ A Home Assistant Lovelace card that shows where people have been on **Google Map
 - **GPS noise filtered:** points with a high `gps_accuracy` and jumps that go and come back are dropped.
 - **Stops instead of dots:** time spent in one place becomes a single marker with its duration (e.g. `2h07`). The name of the HA zone is used when there is one.
 - **One person at a time:** a colored chip per person at the top, plus "All".
+- **Any date and time window:** the calendar button opens a panel to pick a start and end (up to 31 days), with *Today* and *Yesterday* shortcuts. The 6h / 24h / 3d / 7d buttons go back to the recent view.
 - **Timeline:** shown next to the map, or below it on narrow screens. Clicking a stop pans the map to it. A toolbar button hides it to see the map full size; the choice is remembered per browser.
 - **Readable direction:** older parts of the track fade out, and arrows show the direction of travel.
 - **Live updates:** new positions are added without reloading the map. Every map creation counts as one Google map load.
@@ -131,7 +132,7 @@ Phones in normal mode report one position every few minutes, so a plain track cu
    - On the first start the app downloads an OpenStreetMap extract, crops it to `bbox` and prepares the map. For a metropolitan area this takes a few minutes. Afterwards the app uses about 150 MB of RAM.
    - Set `region_url` (a [Geofabrik](https://download.geofabrik.de/) `.osm.pbf`) and `bbox` (`min_lng,min_lat,max_lng,max_lat`) in the app's configuration to cover where your people go.
 2. **Add the action.** Copy [`extras/rest_command.yaml`](extras/rest_command.yaml) to `/config/rest_command.yaml`, add `rest_command: !include rest_command.yaml` to `configuration.yaml`, and restart Home Assistant.
-   - Inside Home Assistant the app is reachable as `http://local-osrm:5000`, so its port doesn't need to be exposed.
+   - Inside Home Assistant the app is reachable as `http://local-osrm:5000`, so its port is closed on your network by default. To query OSRM from another machine, set a host port in the app's **Network** settings.
 3. **Turn it on in the card** with `snap_to_roads: true`.
 
 The matching radius (25 m by default) is how far a point may be from the road it is matched to. The accuracy that phones report is often much worse than the real error, so a small fixed radius matches the actual street better than the reported accuracy.
