@@ -5,6 +5,7 @@ import { fetchHistory, pointFromAttributes } from './history';
 import { loadGoogleMaps, mirrorGoogleStyles, onGoogleAuthFailure } from './google-loader';
 import { strings, type Strings } from './i18n';
 import { isApplePhone } from './device';
+import { osrmGeometry, osrmMatchParams, snapPath, type LatLng, type Matcher } from './snap';
 
 declare const __VERSION__: string;
 const VERSION = __VERSION__;
@@ -75,6 +76,10 @@ class OmniumEnhancedMapCard extends LitElement {
   private _cleanups: (() => void)[] = [];
   private _initStarted = false;
   private _prevButtonStates: Record<string, unknown> = {};
+  /** paths actually drawn: the track path, or its road-snapped version */
+  private _display: Record<string, RawPoint[]> = {};
+  private _snapRun = 0;
+  private _snapWarned = false;
 
   constructor() {
     super();
@@ -228,7 +233,60 @@ class OmniumEnhancedMapCard extends LitElement {
       maxAccuracy: this._config.max_accuracy ?? 100,
       stopRadius: this._config.stop_radius ?? 75,
       stopMinutes: this._config.stop_minutes ?? 5,
+      snapToRoads: !!this._config.snap_to_roads,
     };
+  }
+
+  private _snapEnabled(): boolean {
+    return !!this._config.snap_to_roads && this._tuning.snapToRoads;
+  }
+
+  /** Calls OSRM through the configured Home Assistant action; answers are cached per browser. */
+  private _matcher: Matcher = async (points) => {
+    const opts = typeof this._config.snap_to_roads === 'object' ? this._config.snap_to_roads : {};
+    const params = osrmMatchParams(points, opts.radius ?? 25);
+    const key = snapKey(params.coordinates + '|' + params.timestamps + '|' + params.radiuses);
+    const cached = snapCacheGet(key);
+    if (cached !== undefined) return cached;
+    const [domain, service] = (opts.service ?? 'rest_command.osrm_match').split('.');
+    try {
+      const res = await this._hass!.callWS<{ response?: { status?: number; content?: unknown } }>({
+        type: 'call_service',
+        domain,
+        service,
+        service_data: params,
+        return_response: true,
+      });
+      let content = res?.response?.content;
+      if (typeof content === 'string') content = JSON.parse(content);
+      const road = osrmGeometry(content);
+      // remember definitive answers (a match, or OSRM saying there is none), not transport errors
+      if ((content as { code?: string })?.code) snapCacheSet(key, road);
+      return road;
+    } catch (e: any) {
+      if (!this._snapWarned) console.warn('enhanced-map-card: snap_to_roads failed', e?.message ?? e);
+      this._snapWarned = true;
+      return null;
+    }
+  };
+
+  /** Snaps the visible tracks; draws straight lines first only if that takes a while. */
+  private _snapVisible() {
+    if (!this._snapEnabled()) return;
+    const run = ++this._snapRun;
+    const persons = this._visiblePersons();
+    const straightFirst = window.setTimeout(() => run === this._snapRun && this._draw(), 400);
+    Promise.all(
+      persons.map(async (p) => {
+        const path = this._tracks[p.id]?.path;
+        return [p.id, path ? await snapPath(path, this._matcher) : undefined] as const;
+      }),
+    ).then((done) => {
+      if (run !== this._snapRun) return;
+      window.clearTimeout(straightFirst);
+      for (const [id, path] of done) if (path) this._display[id] = path;
+      this._draw();
+    });
   }
 
   private _setTuning(patch: Partial<Tuning> | null) {
@@ -241,7 +299,7 @@ class OmniumEnhancedMapCard extends LitElement {
   private _renderTuning() {
     const t = this._tuning;
     const s = this._t;
-    const row = (label: string, hint: string, key: keyof Tuning, min: number, max: number, step: number, unit: string) => html`
+    const row = (label: string, hint: string, key: NumericTuning, min: number, max: number, step: number, unit: string) => html`
       <label>
         <span class="t-label">${label} <b>${t[key]} ${unit}</b></span>
         <input type="range" min=${min} max=${max} step=${step} .value=${String(t[key])}
@@ -253,6 +311,14 @@ class OmniumEnhancedMapCard extends LitElement {
       ${row(s.stopRadius, s.stopRadiusHint, 'stopRadius', 10, 200, 5, 'm')}
       ${row(s.accuracyFilter, s.accuracyFilterHint, 'maxAccuracy', 10, 300, 10, 'm')}
       ${row(s.minStop, s.minStopHint, 'stopMinutes', 1, 30, 1, 'min')}
+      ${this._config.snap_to_roads
+        ? html`<label class="t-check">
+              <input type="checkbox" .checked=${t.snapToRoads}
+                @change=${(e: Event) => this._setTuning({ snapToRoads: (e.target as HTMLInputElement).checked })} />
+              <span class="t-label">${s.snapToRoads}</span>
+            </label>
+            <span class="t-hint">${s.snapToRoadsHint}</span>`
+        : nothing}
       <button class="t-reset" @click=${() => this._setTuning(null)}>${s.resetYaml}</button>
       ${this._renderPhoneSettings()}
     </div>`;
@@ -318,7 +384,9 @@ class OmniumEnhancedMapCard extends LitElement {
       tracks[p.id] = buildTrack((this._points[p.id] ?? []).filter((pt) => pt.t >= from), opts);
     }
     this._tracks = tracks;
-    this._draw();
+    this._display = {};
+    if (this._snapEnabled()) this._snapVisible();
+    else this._draw();
   }
 
   // ---------- map drawing ----------
@@ -339,7 +407,7 @@ class OmniumEnhancedMapCard extends LitElement {
     for (const person of this._visiblePersons()) {
       const track = this._tracks[person.id];
       if (!track) continue;
-      this._drawPath(track.path, person.color, single);
+      this._drawPath(this._display[person.id] ?? track.path, person.color, single);
       if (single) track.stops.forEach((s, i) => !s.ongoing && this._drawStop(s, i, person.color));
     }
     this._drawPersons();
@@ -507,6 +575,7 @@ class OmniumEnhancedMapCard extends LitElement {
     this._phoneMsg = undefined;
     this._draw();
     this._fit();
+    if (this._visiblePersons().some((p) => !this._display[p.id])) this._snapVisible();
   }
 
   /**
@@ -883,6 +952,16 @@ class OmniumEnhancedMapCard extends LitElement {
       max-height: calc(100% - 20px);
       overflow-y: auto;
     }
+    .t-check {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      cursor: pointer;
+    }
+    .t-check input {
+      width: auto;
+      margin: 0;
+    }
     .t-reset {
       align-self: flex-start;
       border: 1px solid var(--divider-color);
@@ -1016,6 +1095,58 @@ interface Tuning {
   maxAccuracy: number;
   stopRadius: number;
   stopMinutes: number;
+  snapToRoads: boolean;
+}
+type NumericTuning = 'maxAccuracy' | 'stopRadius' | 'stopMinutes';
+
+/**
+ * Road geometry per match request, kept in this browser so each trip is matched only once.
+ * Stored compactly ("lat,lng;lat,lng" with 5 decimals) and capped to the most recent entries.
+ */
+const SNAP_KEY = 'enhanced-map-card:snap-cache';
+const SNAP_MAX_ENTRIES = 200;
+let snapStore: Map<string, string | null> | undefined;
+let snapSaveTimer: number | undefined;
+function snapKey(text: string): string {
+  let h1 = 5381, h2 = 52711;
+  for (let i = 0; i < text.length; i++) {
+    const c = text.charCodeAt(i);
+    h1 = (h1 * 33) ^ c;
+    h2 = (h2 * 33) ^ c;
+  }
+  return (h1 >>> 0).toString(36) + (h2 >>> 0).toString(36) + text.length.toString(36);
+}
+function snapEntries(): Map<string, string | null> {
+  if (!snapStore) {
+    try {
+      snapStore = new Map(JSON.parse(localStorage.getItem(SNAP_KEY) ?? '[]'));
+    } catch {
+      snapStore = new Map();
+    }
+  }
+  return snapStore;
+}
+function snapCacheGet(key: string): LatLng[] | null | undefined {
+  const store = snapEntries();
+  if (!store.has(key)) return undefined;
+  const v = store.get(key)!;
+  return v === null ? null : v.split(';').map((p) => { const [lat, lng] = p.split(',').map(Number); return { lat, lng }; });
+}
+function snapCacheSet(key: string, road: LatLng[] | null) {
+  const store = snapEntries();
+  store.delete(key);
+  store.set(key, road && road.map((p) => `${p.lat.toFixed(5)},${p.lng.toFixed(5)}`).join(';'));
+  while (store.size > SNAP_MAX_ENTRIES) store.delete(store.keys().next().value!);
+  window.clearTimeout(snapSaveTimer);
+  snapSaveTimer = window.setTimeout(() => {
+    try {
+      localStorage.setItem(SNAP_KEY, JSON.stringify([...store]));
+    } catch {
+      // storage full: keep the newer half
+      const keep = [...store].slice(-Math.floor(store.size / 2));
+      try { localStorage.setItem(SNAP_KEY, JSON.stringify(keep)); } catch { /* no storage */ }
+    }
+  }, 1000);
 }
 
 /** whether the stops list is collapsed, remembered per browser */

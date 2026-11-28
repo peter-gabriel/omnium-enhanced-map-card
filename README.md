@@ -63,6 +63,7 @@ stop_radius: 50               # m: radius treated as "the same place"
 stop_minutes: 5               # min: minimum time for a stop
 height: 100%                  # default 450px; use 100% in a panel view
 gesture_handling: greedy      # greedy | cooperative | auto | none
+snap_to_roads: true           # optional, see "Snap to roads (OSRM)"
 ```
 
 | Option | Default | Description |
@@ -77,6 +78,7 @@ gesture_handling: greedy      # greedy | cooperative | auto | none
 | `height` | `450px` | Card height. Use `100%` in a panel view. |
 | `gesture_handling` | `greedy` | Google Maps gesture handling. |
 | `buttons` | — | Extra icon-only buttons that call any action (see below). |
+| `snap_to_roads` | off | `true` draws trips along the streets with OSRM through `rest_command.osrm_match`. Or `{ service: rest_command.my_osrm, radius: 25 }` to choose the action and the matching radius in metres (see below). |
 
 The values that work best depend on your phones. A 50 m radius with a 75 m accuracy filter usually keeps a whole stay at home as one stop. Smaller values break it into many short stops.
 
@@ -113,6 +115,26 @@ buttons:
     data_on: { entity_id: light.porch }
     data_off: { entity_id: light.porch }
 ```
+
+## Snap to roads (OSRM)
+
+Phones in normal mode report one position every few minutes, so a plain track cuts across blocks between two samples. With `snap_to_roads`, the card sends each trip (the part between two stops) to an [OSRM](https://project-osrm.org/) server. OSRM's *map matching* returns the most likely route along the streets, and the card draws that route instead of straight lines.
+
+- **Requests go through Home Assistant.** The card calls a Home Assistant action that forwards the request to OSRM and returns its answer. This works at home and away (through the app or your external URL), and your location data never leaves Home Assistant.
+- **Each trip is matched once.** The result is cached in the browser, which keeps up to 200 trips, so reopening the map does not call OSRM again.
+- **Failures fall back to straight lines.** If OSRM is down, finds no match or returns a detour much longer than the trip, that trip keeps its straight lines.
+- **You can turn it off per browser.** The **Follow the streets (OSRM)** switch in the settings panel turns it off and on, for example to compare with the raw track.
+
+### Setup
+
+1. **Run OSRM as a local app.** Copy [`extras/osrm-app`](extras/osrm-app) to the `/local_apps/osrm` folder of your Home Assistant OS host. Older versions use `/addons/osrm`. Then go to **Settings → Apps → App store → ⋮ → Check for updates**, install **OSRM map matching** and start it.
+   - On the first start the app downloads an OpenStreetMap extract, crops it to `bbox` and prepares the map. For a metropolitan area this takes a few minutes. Afterwards the app uses about 150 MB of RAM.
+   - Set `region_url` (a [Geofabrik](https://download.geofabrik.de/) `.osm.pbf`) and `bbox` (`min_lng,min_lat,max_lng,max_lat`) in the app's configuration to cover where your people go.
+2. **Add the action.** Copy [`extras/rest_command.yaml`](extras/rest_command.yaml) to `/config/rest_command.yaml`, add `rest_command: !include rest_command.yaml` to `configuration.yaml`, and restart Home Assistant.
+   - Inside Home Assistant the app is reachable as `http://local-osrm:5000`, so its port doesn't need to be exposed.
+3. **Turn it on in the card** with `snap_to_roads: true`.
+
+The matching radius (25 m by default) is how far a point may be from the road it is matched to. The accuracy that phones report is often much worse than the real error, so a small fixed radius matches the actual street better than the reported accuracy.
 
 ## High-accuracy mode
 
