@@ -58,7 +58,7 @@ entities:                     # person.* or device_tracker.* entities (required)
       notify: notify.mobile_app_bobs_phone
       entity: binary_sensor.bobs_phone_high_accuracy_mode
 hours_to_show: 24             # initial period; the toolbar offers 6h / 24h / 3d / 7d
-max_accuracy: 75              # m: ignore points less accurate than this
+max_accuracy: 75              # m: less accurate points are only used if they fit the route
 stop_radius: 50               # m: radius treated as "the same place"
 stop_minutes: 5               # min: minimum time for a stop
 height: 100%                  # default 450px; use 100% in a panel view
@@ -71,7 +71,7 @@ gesture_handling: greedy      # greedy | cooperative | auto | none
 | `map_id` | `DEMO_MAP_ID` | Map ID from Google Cloud, for custom map styles. |
 | `entities` | — | List of entity ids, or objects with `entity`, `name`, `color` and `gps_button`. |
 | `hours_to_show` | `24` | Hours of history loaded at start. |
-| `max_accuracy` | `100` | Points with `gps_accuracy` above this (m) are ignored. |
+| `max_accuracy` | `100` | Points with `gps_accuracy` above this (m) are only used when they fit the route between accurate points (see below). Above 4× this value they are always ignored. |
 | `stop_radius` | `75` | Movements within this radius (m) count as staying in place. |
 | `stop_minutes` | `5` | Minimum minutes in place to show a stop. |
 | `height` | `450px` | Card height. Use `100%` in a panel view. |
@@ -79,6 +79,12 @@ gesture_handling: greedy      # greedy | cooperative | auto | none
 | `buttons` | — | Extra icon-only buttons that call any action (see below). |
 
 The values that work best depend on your phones. A 50 m radius with a 75 m accuracy filter usually keeps a whole stay at home as one stop. Smaller values break it into many short stops.
+
+### How the track is cleaned
+
+- **Inaccurate points:** while moving, phones often report fixes with 80–200 m accuracy, and such a fix may be the only sample of a street. A point less accurate than `max_accuracy` is kept when it fits between the accurate points before and after it. It is dropped when it "goes out and comes back", which is the typical network fix while someone stands still. It is also dropped when it is more than 4× `max_accuracy`.
+- **Spikes:** a jump that would need more than 70 m/s in both directions is removed.
+- **Stops:** points that stay within `stop_radius` for at least `stop_minutes` become one stop. A single point only counts as a stop when the phone then stayed silent for much longer than its usual reporting interval. Otherwise a slow trip with one sample every few minutes would turn every sample into a stop.
 
 ### Track settings in the card
 
