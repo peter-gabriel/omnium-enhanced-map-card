@@ -9,7 +9,7 @@ A Home Assistant Lovelace card that shows where people have been on **Google Map
 - **GPS noise filtered:** points with a high `gps_accuracy` and jumps that go and come back are dropped.
 - **Stops instead of dots:** time spent in one place becomes a single marker with its duration (e.g. `2h07`). The name of the HA zone is used when there is one.
 - **One person at a time:** a colored chip per person at the top, plus "All".
-- **Timeline:** shown next to the map, or below it on narrow screens. Clicking a stop pans the map to it.
+- **Timeline:** shown next to the map, or below it on narrow screens. Clicking a stop pans the map to it. A toolbar button hides it to see the map full size; the choice is remembered per browser.
 - **Readable direction:** older parts of the track fade out, and arrows show the direction of travel.
 - **Live updates:** new positions are added without reloading the map. Every map creation counts as one Google map load.
 - **High-accuracy GPS control:** one button per person turns the Android companion app's high-accuracy mode on or off. The card also sets the update interval for it (see [High-accuracy mode](#high-accuracy-mode)).
@@ -118,7 +118,7 @@ buttons:
 
 The Android Home Assistant companion app normally reports location only every few minutes, or when it detects significant movement. This saves battery, but the track gets coarse: corners are cut and short trips can be missed.
 
-**High-accuracy mode** makes the app keep the GPS on and report a position at a fixed interval (for example every 30 s). The track becomes much more detailed, at the cost of more battery use. While it is on, the app shows a persistent "High accuracy mode" notification. The mode is Android-only; the iOS app has no equivalent.
+**High-accuracy mode** makes the app keep the GPS on and report a position at a fixed interval (for example every 30 s). The track becomes much more detailed, at the cost of more battery use. While it is on, the app shows a persistent "High accuracy mode" notification. The mode is Android-only; the iOS app has no equivalent. For people whose phone is an Apple device in Home Assistant, the card hides the GPS button and the phone settings, even if `gps_button` is configured.
 
 The card controls the mode by sending [notification commands](https://companion.home-assistant.io/docs/notifications/notification-commands/) to the phone through its `notify.mobile_app_*` service:
 

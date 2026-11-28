@@ -4,6 +4,7 @@ import { buildTrack, distance, type RawPoint, type Stop, type Track } from './tr
 import { fetchHistory, pointFromAttributes } from './history';
 import { loadGoogleMaps, mirrorGoogleStyles, onGoogleAuthFailure } from './google-loader';
 import { strings, type Strings } from './i18n';
+import { isApplePhone } from './device';
 
 declare const __VERSION__: string;
 const VERSION = __VERSION__;
@@ -42,6 +43,7 @@ class OmniumEnhancedMapCard extends LitElement {
     _activeStop: { state: true },
     _tuning: { state: true },
     _showTuning: { state: true },
+    _timelineHidden: { state: true },
     _phoneBusy: { state: true },
     _phoneMsg: { state: true },
   };
@@ -56,6 +58,7 @@ class OmniumEnhancedMapCard extends LitElement {
   declare _activeStop: number | undefined;
   declare _tuning: Tuning;
   declare _showTuning: boolean;
+  declare _timelineHidden: boolean;
   declare _phoneBusy: boolean;
   declare _phoneMsg: string | undefined;
 
@@ -80,6 +83,7 @@ class OmniumEnhancedMapCard extends LitElement {
     this._hours = 24;
     this._tracks = {};
     this._loading = false;
+    this._timelineHidden = loadTimelineHidden();
   }
 
   // ---------- HA card API ----------
@@ -258,7 +262,7 @@ class OmniumEnhancedMapCard extends LitElement {
   private _renderPhoneSettings() {
     const p = this._persons.find((x) => x.id === this._selected);
     const btn = p?.gpsButton;
-    if (!p || !btn) return nothing;
+    if (!p || !btn || this._isApplePhone(p)) return nothing;
     const s = this._t;
     const intervalEntity = btn.entity?.replace(/^binary_sensor\.(.*)_high_accuracy_mode$/, 'sensor.$1_high_accuracy_update_interval');
     const current = intervalEntity ? this._hass?.states[intervalEntity]?.state : undefined;
@@ -505,9 +509,26 @@ class OmniumEnhancedMapCard extends LitElement {
     this._fit();
   }
 
+  /**
+   * High-accuracy mode is an Android companion-app feature: the iOS app ignores the command.
+   * The phone is found through the device of the button's sensor or of the person's trackers.
+   */
+  private _isApplePhone(p: Person): boolean {
+    const trackers: string[] = this._hass?.states[p.id]?.attributes.device_trackers ?? [];
+    return isApplePhone(this._hass, [p.gpsButton?.entity, p.id, ...trackers]);
+  }
+
+  private _toggleTimeline() {
+    const center = this._map?.getCenter();
+    this._timelineHidden = !this._timelineHidden;
+    saveTimelineHidden(this._timelineHidden);
+    // the map changes size; keep looking at the same place
+    this.updateComplete.then(() => center && this._map?.setCenter(center));
+  }
+
   private _selectedGpsButton(): ToolbarButton | undefined {
     const p = this._persons.find((x) => x.id === this._selected);
-    if (!p?.gpsButton) return undefined;
+    if (!p?.gpsButton || this._isApplePhone(p)) return undefined;
     return { ...p.gpsButton, name: this._t.gpsButton(this._name(p)) };
   }
 
@@ -630,6 +651,13 @@ class OmniumEnhancedMapCard extends LitElement {
           </div>
           ${(this._config.buttons ?? []).map((b) => this._renderButton(b))}
           ${this._selectedGpsButton() ? this._renderButton(this._selectedGpsButton()!) : nothing}
+          ${single
+            ? html`<button class="icon-btn" title=${this._timelineHidden ? t.showStops : t.hideStops}
+                aria-label=${this._timelineHidden ? t.showStops : t.hideStops} aria-pressed=${!this._timelineHidden}
+                @click=${() => this._toggleTimeline()}>
+                <ha-icon icon=${this._timelineHidden ? 'mdi:format-list-bulleted' : 'mdi:map-legend'}></ha-icon>
+              </button>`
+            : nothing}
           <button class="icon-btn" title=${t.tuningTitle} aria-pressed=${!!this._showTuning} @click=${() => (this._showTuning = !this._showTuning)}>
             <ha-icon icon="mdi:tune-variant"></ha-icon>
           </button>
@@ -646,7 +674,7 @@ class OmniumEnhancedMapCard extends LitElement {
             ${this._loading ? html`<div class="banner">${t.loading}</div>` : nothing}
             ${this._error ? html`<div class="banner error">${this._error}</div>` : nothing}
           </div>
-          ${single ? this._renderTimeline() : nothing}
+          ${single && !this._timelineHidden ? this._renderTimeline() : nothing}
         </div>
       </ha-card>
     `;
@@ -988,6 +1016,24 @@ interface Tuning {
   maxAccuracy: number;
   stopRadius: number;
   stopMinutes: number;
+}
+
+/** whether the stops list is collapsed, remembered per browser */
+const TIMELINE_KEY = 'enhanced-map-card:timeline-hidden';
+function loadTimelineHidden(): boolean {
+  try {
+    return localStorage.getItem(TIMELINE_KEY) === '1';
+  } catch {
+    return false;
+  }
+}
+function saveTimelineHidden(hidden: boolean) {
+  try {
+    if (hidden) localStorage.setItem(TIMELINE_KEY, '1');
+    else localStorage.removeItem(TIMELINE_KEY);
+  } catch {
+    /* no storage: applies to this session only */
+  }
 }
 
 /** settings changed in the tuning panel are saved in this browser and override the YAML */
