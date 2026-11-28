@@ -9,6 +9,7 @@ A Home Assistant Lovelace card that shows where people have been on **Google Map
 - **GPS noise filtered:** points with a high `gps_accuracy` and jumps that go and come back are dropped.
 - **Stops instead of dots:** time spent in one place becomes a single marker with its duration (e.g. `2h07`). The name of the HA zone is used when there is one.
 - **One person at a time:** a colored chip per person at the top, plus "All".
+- **Any date and time window:** the calendar button opens a panel to pick a start and end (up to 31 days), with *Today* and *Yesterday* shortcuts. The 6h / 24h / 3d / 7d buttons go back to the recent view.
 - **Timeline:** shown next to the map, or below it on narrow screens. Clicking a stop pans the map to it. A toolbar button hides it to see the map full size; the choice is remembered per browser.
 - **Readable direction:** older parts of the track fade out, and arrows show the direction of travel.
 - **Live updates:** new positions are added without reloading the map. Every map creation counts as one Google map load.
