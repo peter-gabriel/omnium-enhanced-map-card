@@ -5,6 +5,7 @@ import { fetchHistory, pointFromAttributes } from './history';
 import { loadGoogleMaps, mirrorGoogleStyles, onGoogleAuthFailure } from './google-loader';
 import { strings, type Strings } from './i18n';
 import { isApplePhone } from './device';
+import { dayRange, fromInputValue, isPastRange, isValidRange, MAX_RANGE_DAYS, toInputValue, type TimeRange } from './range';
 import { osrmGeometry, osrmMatchParams, snapPath, type LatLng, type Matcher } from './snap';
 
 declare const __VERSION__: string;
@@ -44,6 +45,9 @@ class OmniumEnhancedMapCard extends LitElement {
     _activeStop: { state: true },
     _tuning: { state: true },
     _showTuning: { state: true },
+    _range: { state: true },
+    _showRange: { state: true },
+    _rangeDraft: { state: true },
     _timelineHidden: { state: true },
     _phoneBusy: { state: true },
     _phoneMsg: { state: true },
@@ -59,6 +63,10 @@ class OmniumEnhancedMapCard extends LitElement {
   declare _activeStop: number | undefined;
   declare _tuning: Tuning;
   declare _showTuning: boolean;
+  /** custom date/time window; undefined = the last `_hours` hours */
+  declare _range: TimeRange | undefined;
+  declare _showRange: boolean;
+  declare _rangeDraft: { start: string; end: string; invalid?: boolean };
   declare _timelineHidden: boolean;
   declare _phoneBusy: boolean;
   declare _phoneMsg: string | undefined;
@@ -89,6 +97,8 @@ class OmniumEnhancedMapCard extends LitElement {
     this._tracks = {};
     this._loading = false;
     this._timelineHidden = loadTimelineHidden();
+    this._showRange = false;
+    this._rangeDraft = { start: '', end: '' };
   }
 
   // ---------- HA card API ----------
@@ -211,8 +221,8 @@ class OmniumEnhancedMapCard extends LitElement {
     this._loading = true;
     this._error = undefined;
     try {
-      const start = new Date(Date.now() - this._hours * 3600_000);
-      this._points = await fetchHistory(this._hass, this._persons.map((p) => p.id), start);
+      const w = this._window();
+      this._points = await fetchHistory(this._hass, this._persons.map((p) => p.id), new Date(w.start), new Date(w.end));
       for (const p of this._persons) this._lastSeen[p.id] = this._hass.states[p.id]?.last_updated;
       this._recompute();
       this._fit();
@@ -377,11 +387,16 @@ class OmniumEnhancedMapCard extends LitElement {
   }
 
   private _recompute() {
-    const from = Date.now() - this._hours * 3600_000;
-    const opts = this._tuning;
+    const w = this._window();
+    const now = Date.now();
+    const opts = { ...this._tuning, now: Math.min(now, w.end) };
+    const past = isPastRange(this._range, now);
     const tracks: Record<string, Track> = {};
     for (const p of this._persons) {
-      tracks[p.id] = buildTrack((this._points[p.id] ?? []).filter((pt) => pt.t >= from), opts);
+      const track = buildTrack((this._points[p.id] ?? []).filter((pt) => pt.t >= w.start && pt.t <= w.end), opts);
+      // in a window that already ended, the last stop is not "until now"
+      if (past) track.stops.forEach((s) => (s.ongoing = false));
+      tracks[p.id] = track;
     }
     this._tracks = tracks;
     this._display = {};
@@ -504,6 +519,11 @@ class OmniumEnhancedMapCard extends LitElement {
     const st = this._hass?.states[id];
     const raw = st ? pointFromAttributes(st.attributes, 0) : null;
     const track = this._tracks[id];
+    // a past window shows where the person was when it ended, not where they are now
+    if (isPastRange(this._range, Date.now())) {
+      const end = track?.path.at(-1);
+      return { pos: end ? { lat: end.lat, lng: end.lng } : null };
+    }
     const stop = track?.stops.at(-1);
     if (stop?.ongoing) return { pos: { lat: stop.lat, lng: stop.lng }, stop };
     const imprecise = raw?.acc !== undefined && raw.acc > this._tuning.maxAccuracy;
@@ -641,8 +661,65 @@ class OmniumEnhancedMapCard extends LitElement {
     }
   }
 
+  /** the time span on screen: the custom window, or the last `_hours` hours */
+  private _window(): TimeRange {
+    const now = Date.now();
+    return this._range ?? { start: now - this._hours * 3600_000, end: now };
+  }
+
+  private _openRange() {
+    this._showRange = !this._showRange;
+    if (!this._showRange) return;
+    this._showTuning = false;
+    const w = this._window();
+    this._rangeDraft = { start: toInputValue(w.start), end: toInputValue(w.end) };
+  }
+
+  private _applyRange(range: TimeRange | undefined) {
+    if (range && !isValidRange(range, Date.now())) {
+      this._rangeDraft = { ...this._rangeDraft, invalid: true };
+      return;
+    }
+    this._range = range;
+    this._showRange = false;
+    this._activeStop = undefined;
+    this._loadHistory();
+  }
+
+  private _renderRange() {
+    const t = this._t;
+    const d = this._rangeDraft;
+    const now = Date.now();
+    const set = (key: 'start' | 'end') => (e: Event) =>
+      (this._rangeDraft = { ...this._rangeDraft, [key]: (e.target as HTMLInputElement).value, invalid: false });
+    return html`<div class="tuning range">
+      <div class="t-title">${t.rangeTitle}</div>
+      <div class="t-chips">
+        <button @click=${() => this._applyRange(dayRange(0, now))}>${t.today}</button>
+        <button @click=${() => this._applyRange(dayRange(1, now))}>${t.yesterday}</button>
+      </div>
+      <label>
+        <span class="t-label">${t.rangeFrom}</span>
+        <input type="datetime-local" .value=${d.start} max=${toInputValue(now)} @change=${set('start')} />
+      </label>
+      <label>
+        <span class="t-label">${t.rangeTo}</span>
+        <input type="datetime-local" .value=${d.end} @change=${set('end')} />
+      </label>
+      ${d.invalid ? html`<span class="t-hint error">${t.rangeInvalid(MAX_RANGE_DAYS)}</span>` : nothing}
+      <div class="t-actions">
+        <button class="t-reset primary" @click=${() => this._applyRange({ start: fromInputValue(d.start), end: fromInputValue(d.end) })}>
+          ${t.rangeApply}
+        </button>
+        ${this._range ? html`<button class="t-reset" @click=${() => this._applyRange(undefined)}>${t.rangeClear}</button>` : nothing}
+      </div>
+    </div>`;
+  }
+
   private _setHours(hours: number) {
-    if (this._hours === hours) return;
+    if (this._hours === hours && !this._range) return;
+    this._range = undefined;
+    this._showRange = false;
     this._hours = hours;
     this._activeStop = undefined;
     this._loadHistory();
@@ -691,7 +768,13 @@ class OmniumEnhancedMapCard extends LitElement {
     const lang = this._hass?.locale?.language ?? this._hass?.language ?? navigator.language;
     const d = new Date(t);
     const today = new Date().toDateString() === d.toDateString();
-    return new Intl.DateTimeFormat(lang, today ? { hour: '2-digit', minute: '2-digit' } : { weekday: 'short', hour: '2-digit', minute: '2-digit' }).format(d);
+    const thisWeek = Date.now() - t < 6 * 86_400_000;
+    const opts: Intl.DateTimeFormatOptions = today
+      ? { hour: '2-digit', minute: '2-digit' }
+      : thisWeek
+        ? { weekday: 'short', hour: '2-digit', minute: '2-digit' }
+        : { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' };
+    return new Intl.DateTimeFormat(lang, opts).format(d);
   }
 
   // ---------- render ----------
@@ -727,12 +810,18 @@ class OmniumEnhancedMapCard extends LitElement {
                 <ha-icon icon=${this._timelineHidden ? 'mdi:format-list-bulleted' : 'mdi:map-legend'}></ha-icon>
               </button>`
             : nothing}
-          <button class="icon-btn" title=${t.tuningTitle} aria-pressed=${!!this._showTuning} @click=${() => (this._showTuning = !this._showTuning)}>
+          <button class="icon-btn" title=${t.tuningTitle} aria-pressed=${!!this._showTuning}
+            @click=${() => ((this._showTuning = !this._showTuning), (this._showRange = false))}>
             <ha-icon icon="mdi:tune-variant"></ha-icon>
+          </button>
+          <button class="icon-btn ${this._range ? 'active-range' : ''}"
+            title=${this._range ? t.rangeActive(`${this._formatTime(this._range.start)} – ${this._formatTime(this._range.end)}`) : t.rangeTitle}
+            aria-pressed=${!!this._range || !!this._showRange} @click=${() => this._openRange()}>
+            <ha-icon icon="mdi:calendar-clock"></ha-icon>
           </button>
           <div class="periods" role="group" aria-label=${t.period}>
             ${PERIODS.map(
-              (p) => html`<button aria-pressed=${this._hours === p.hours} @click=${() => this._setHours(p.hours)}>${p.label}</button>`,
+              (p) => html`<button aria-pressed=${!this._range && this._hours === p.hours} @click=${() => this._setHours(p.hours)}>${p.label}</button>`,
             )}
           </div>
         </div>
@@ -740,6 +829,12 @@ class OmniumEnhancedMapCard extends LitElement {
           <div class="map-wrap">
             <div id="map"></div>
             ${this._showTuning ? this._renderTuning() : nothing}
+            ${this._showRange ? this._renderRange() : nothing}
+            ${this._range && !this._showRange
+              ? html`<div class="range-badge" @click=${() => this._openRange()}>
+                  <ha-icon icon="mdi:calendar-clock"></ha-icon>${this._formatTime(this._range.start)} – ${this._formatTime(this._range.end)}
+                </div>`
+              : nothing}
             ${this._loading ? html`<div class="banner">${t.loading}</div>` : nothing}
             ${this._error ? html`<div class="banner error">${this._error}</div>` : nothing}
           </div>
@@ -753,7 +848,7 @@ class OmniumEnhancedMapCard extends LitElement {
     const track = this._tracks[this._selected];
     const stops = track?.stops ?? [];
     const indexed = stops.map((s, i) => ({ s, i })).reverse();
-    const moving = track && track.path.length > 0 && !stops.at(-1)?.ongoing;
+    const moving = track && track.path.length > 0 && !stops.at(-1)?.ongoing && !isPastRange(this._range, Date.now());
     const t = this._t;
     return html`
       <aside class="timeline">
@@ -961,6 +1056,50 @@ class OmniumEnhancedMapCard extends LitElement {
     .t-check input {
       width: auto;
       margin: 0;
+    }
+    .tuning input[type='datetime-local'] {
+      font: inherit;
+      color: var(--primary-text-color);
+      background: var(--secondary-background-color, transparent);
+      border: 1px solid var(--divider-color);
+      border-radius: 8px;
+      padding: 4px 6px;
+      color-scheme: light dark;
+    }
+    .t-actions {
+      display: flex;
+      gap: 8px;
+      flex-wrap: wrap;
+    }
+    .t-reset.primary {
+      background: var(--primary-color);
+      border-color: var(--primary-color);
+      color: var(--text-primary-color, #fff);
+    }
+    .t-hint.error {
+      color: var(--error-color, #db4437);
+    }
+    .range-badge {
+      position: absolute;
+      left: 50%;
+      bottom: 24px;
+      transform: translateX(-50%);
+      z-index: 1;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      padding: 4px 12px;
+      border-radius: 16px;
+      background: var(--card-background-color);
+      color: var(--primary-text-color);
+      box-shadow: 0 2px 6px rgba(0, 0, 0, 0.35);
+      font-size: 12px;
+      cursor: pointer;
+      white-space: nowrap;
+      --mdc-icon-size: 16px;
+    }
+    .icon-btn.active-range[aria-pressed='true'] {
+      background: var(--accent-color, var(--primary-color));
     }
     .t-reset {
       align-self: flex-start;
