@@ -1,0 +1,23 @@
+name: OSRM map matching
+version: "1.0.0"
+slug: osrm
+description: Local OSRM server that snaps GPS tracks to roads (OpenStreetMap). Used by Omnium Enhanced Map Card (snap_to_roads).
+arch:
+  - amd64
+startup: application
+boot: auto
+init: false
+ports:
+  5000/tcp: 5000
+ports_description:
+  5000/tcp: OSRM HTTP API
+# Example region: change region_url to the Geofabrik extract that covers your area and, optionally,
+# bbox (min_lng,min_lat,max_lng,max_lat) to crop it to where your people go. Smaller = less RAM/disk.
+options:
+  region_url: https://download.geofabrik.de/europe/monaco-latest.osm.pbf
+  bbox: ""
+  profile: car
+schema:
+  region_url: url
+  bbox: str?
+  profile: list(car|foot|bicycle)
