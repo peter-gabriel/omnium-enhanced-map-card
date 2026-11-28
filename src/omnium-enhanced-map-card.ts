@@ -609,10 +609,14 @@ class OmniumEnhancedMapCard extends LitElement {
   render() {
     if (!this._config) return nothing;
     const height = this._config.height ?? (this.isPanel || this.layout === 'panel' ? '100%' : '450px');
+    // A percentage only works when the parent has a fixed height, which HA's panel view does not give.
+    // Without a cap, a long timeline stretches the card past the screen and the map frames trips out of
+    // view, so a percentage height is also capped at the visible area below the HA header.
+    const maxHeight = height.endsWith('%') ? 'calc(100dvh - var(--header-height, 56px))' : 'none';
     const single = this._selected !== ALL;
     const t = this._t;
     return html`
-      <ha-card style="--emc-height:${height}">
+      <ha-card style="--emc-height:${height};--emc-max-height:${maxHeight}">
         <div class="toolbar">
           <div class="chips" role="group" aria-label=${t.people}>
             ${this._persons.map(
@@ -683,6 +687,7 @@ class OmniumEnhancedMapCard extends LitElement {
     }
     ha-card {
       height: var(--emc-height);
+      max-height: var(--emc-max-height, none);
       display: flex;
       flex-direction: column;
       overflow: hidden;
