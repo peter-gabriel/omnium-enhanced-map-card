@@ -14,6 +14,9 @@ export interface Hass {
   locale?: { language: string };
   themes?: { darkMode?: boolean };
   config?: { latitude: number; longitude: number };
+  /** frontend copies of the entity and device registries (HA 2023.3+) */
+  entities?: Record<string, { device_id?: string | null }>;
+  devices?: Record<string, { manufacturer?: string | null; model?: string | null }>;
 }
 
 export interface EntityConfig {
