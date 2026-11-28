@@ -131,7 +131,7 @@ Phones in normal mode report one position every few minutes, so a plain track cu
    - On the first start the app downloads an OpenStreetMap extract, crops it to `bbox` and prepares the map. For a metropolitan area this takes a few minutes. Afterwards the app uses about 150 MB of RAM.
    - Set `region_url` (a [Geofabrik](https://download.geofabrik.de/) `.osm.pbf`) and `bbox` (`min_lng,min_lat,max_lng,max_lat`) in the app's configuration to cover where your people go.
 2. **Add the action.** Copy [`extras/rest_command.yaml`](extras/rest_command.yaml) to `/config/rest_command.yaml`, add `rest_command: !include rest_command.yaml` to `configuration.yaml`, and restart Home Assistant.
-   - Inside Home Assistant the app is reachable as `http://local-osrm:5000`, so its port doesn't need to be exposed.
+   - Inside Home Assistant the app is reachable as `http://local-osrm:5000`, so its port is closed on your network by default. To query OSRM from another machine, set a host port in the app's **Network** settings.
 3. **Turn it on in the card** with `snap_to_roads: true`.
 
 The matching radius (25 m by default) is how far a point may be from the road it is matched to. The accuracy that phones report is often much worse than the real error, so a small fixed radius matches the actual street better than the reported accuracy.
