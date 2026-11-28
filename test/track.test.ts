@@ -73,3 +73,52 @@ describe('i18n', () => {
     expect(strings(undefined).moving).toBe('On the move');
   });
 });
+
+describe('route precision', () => {
+  it('keeps an inaccurate point that fits a trip and drops one that is noise at a stop', () => {
+    const pts: RawPoint[] = [
+      { ...HOME, t: 0 },
+      { ...north(HOME, 800), t: 4 * MIN, acc: 30 },
+      { ...north(HOME, 1600), t: 8 * MIN, acc: 104 }, // only sample of this street, poor accuracy
+      { ...north(HOME, 2400), t: 12 * MIN, acc: 40 },
+      { ...north(HOME, 2410), t: 16 * MIN, acc: 10 },
+      { ...north(HOME, 2900), t: 20 * MIN, acc: 150 }, // network fix while standing still
+      { ...north(HOME, 2405), t: 24 * MIN, acc: 10 },
+    ];
+    const kept = cleanPoints(pts, 75).map((p) => p.t);
+    expect(kept).toContain(8 * MIN);
+    expect(kept).not.toContain(20 * MIN);
+  });
+
+  it('always drops points far beyond the accuracy limit', () => {
+    const pts: RawPoint[] = [
+      { ...HOME, t: 0 },
+      { ...north(HOME, 500), t: 4 * MIN, acc: 400 },
+      { ...north(HOME, 1000), t: 8 * MIN },
+    ];
+    expect(cleanPoints(pts, 75).map((p) => p.t)).toEqual([0, 8 * MIN]);
+  });
+
+  it('a slow trip with sparse samples does not turn each sample into a stop', () => {
+    // one point every 4 minutes, moving ~800 m between samples
+    const pts: RawPoint[] = [];
+    for (let i = 0; i < 6; i++) pts.push({ ...north(HOME, i * 800), t: i * 4 * MIN, acc: 20 });
+    const track = buildTrack(pts, { ...opts, stopRadius: 50, now: 21 * MIN });
+    expect(track.stops.filter((s) => !s.ongoing)).toHaveLength(0);
+    expect(track.path).toHaveLength(6); // every sample stays on the path
+  });
+
+  it('a single point followed by a long silence is still a stop', () => {
+    const pts: RawPoint[] = [
+      { ...HOME, t: 0, acc: 10 },
+      { ...north(HOME, 800), t: 4 * MIN, acc: 10 },
+      { ...north(HOME, 1600), t: 8 * MIN, acc: 10 }, // arrives and the phone goes quiet
+      { ...north(HOME, 2400), t: 68 * MIN, acc: 10 },
+      { ...north(HOME, 3200), t: 72 * MIN, acc: 10 },
+    ];
+    const track = buildTrack(pts, { ...opts, stopRadius: 50, now: 73 * MIN });
+    const done = track.stops.filter((s) => !s.ongoing);
+    expect(done).toHaveLength(1);
+    expect(distance(done[0], north(HOME, 1600))).toBeLessThan(5);
+  });
+});

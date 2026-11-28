@@ -42,6 +42,12 @@ const EARTH = 6371000;
 const RAD = Math.PI / 180;
 /** speed assumed when estimating when a stop ended (m/s) */
 const DEPART_SPEED = 10;
+/** points less accurate than maxAccuracy × this are always dropped */
+const HARD_ACCURACY_FACTOR = 4;
+/** an inaccurate point is a spike when its neighbors are closer to each other than this × its distance to them */
+const SPIKE_RATIO = 0.5;
+/** a stop backed by a single point needs a gap to the next point of at least this × the usual interval */
+const SINGLE_POINT_GAP_FACTOR = 2.5;
 
 export function distance(a: LatLng, b: LatLng): number {
   const dLat = (b.lat - a.lat) * RAD;
@@ -56,10 +62,21 @@ function speed(a: RawPoint, b: RawPoint): number {
   return dt === 0 ? Infinity : distance(a, b) / dt;
 }
 
-/** Sorts and removes inaccurate points, duplicates and "spikes" (a GPS jump that goes and comes back). */
+const isAccurate = (p: RawPoint, maxAccuracy: number) => p.acc === undefined || p.acc <= maxAccuracy;
+
+/**
+ * Sorts and removes duplicates, "spikes" (a GPS jump that goes and comes back) and inaccurate points
+ * that do not fit the route.
+ *
+ * A point less accurate than `maxAccuracy` is not dropped outright: while the person is moving, phones
+ * often report 80–200 m fixes that are still the only sample of a street they went through. It is kept
+ * when it fits between its accurate neighbors, and dropped when it is far off (more than
+ * `HARD_ACCURACY_FACTOR` × `maxAccuracy`), has no accurate neighbor on one side, or goes out and comes
+ * back — the typical network fix while someone is standing still.
+ */
 export function cleanPoints(points: RawPoint[], maxAccuracy: number, maxSpeed = 70): RawPoint[] {
   const sorted = points
-    .filter((p) => p.acc === undefined || p.acc <= maxAccuracy)
+    .filter((p) => p.acc === undefined || p.acc <= maxAccuracy * HARD_ACCURACY_FACTOR)
     .sort((a, b) => a.t - b.t);
 
   const dedup: RawPoint[] = [];
@@ -69,15 +86,39 @@ export function cleanPoints(points: RawPoint[], maxAccuracy: number, maxSpeed = 
     dedup.push(p);
   }
 
-  const out: RawPoint[] = [];
+  const fitting: RawPoint[] = [];
+  let prevGood: RawPoint | undefined;
   for (let i = 0; i < dedup.length; i++) {
+    const p = dedup[i];
+    if (isAccurate(p, maxAccuracy)) {
+      fitting.push((prevGood = p));
+      continue;
+    }
+    const nextGood = dedup.slice(i + 1).find((q) => isAccurate(q, maxAccuracy));
+    if (!prevGood || !nextGood) continue;
+    const out = distance(prevGood, p);
+    const back = distance(p, nextGood);
+    const direct = distance(prevGood, nextGood);
+    // went out and came back: the neighbors are much closer to each other than to this point
+    if (direct < SPIKE_RATIO * Math.min(out, back)) continue;
+    fitting.push(p);
+  }
+
+  const out: RawPoint[] = [];
+  for (let i = 0; i < fitting.length; i++) {
     const prev = out[out.length - 1];
-    const cur = dedup[i];
-    const next = dedup[i + 1];
+    const cur = fitting[i];
+    const next = fitting[i + 1];
     if (prev && next && speed(prev, cur) > maxSpeed && speed(cur, next) > maxSpeed) continue;
     out.push(cur);
   }
   return out;
+}
+
+/** median time between consecutive points (ms): the phone's usual reporting interval */
+function typicalInterval(pts: RawPoint[]): number {
+  const gaps = pts.slice(1).map((p, i) => p.t - pts[i].t).sort((a, b) => a - b);
+  return gaps.length ? gaps[Math.floor(gaps.length / 2)] : 0;
 }
 
 type Segment =
@@ -88,6 +129,7 @@ export function buildTrack(raw: RawPoint[], opts: TrackOptions): Track {
   const pts = cleanPoints(raw, opts.maxAccuracy, opts.maxSpeed);
   const now = opts.now ?? Date.now();
   const minStay = opts.stopMinutes * 60_000;
+  const interval = typicalInterval(pts);
   const segments: Segment[] = [];
 
   const pushMove = (p: RawPoint) => {
@@ -118,8 +160,13 @@ export function buildTrack(raw: RawPoint[], opts: TrackOptions): Track {
       ? Math.max(last.t, next.t - distance({ lat, lng }, next) / DEPART_SPEED * 1000)
       : Math.max(last.t, now);
 
-    if (end - start >= minStay) {
-      segments.push({ kind: 'stop', lat, lng, start, end, ongoing: !next, n: j - i });
+    // A single point is only a stop when the phone went quiet for much longer than usual.
+    // Otherwise every sample of a slow trip with sparse reporting (one point every few minutes)
+    // would turn into a stop.
+    const n = j - i;
+    const quietLongEnough = !next || next.t - last.t >= interval * SINGLE_POINT_GAP_FACTOR;
+    if (end - start >= minStay && (n >= 2 || quietLongEnough)) {
+      segments.push({ kind: 'stop', lat, lng, start, end, ongoing: !next, n });
       i = j;
     } else {
       pushMove(pts[i]);
